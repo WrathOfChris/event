@@ -44,64 +44,65 @@ have past to the mists of time.  Apologies to those forgotten.
 example
 =======
 
-myfunction DEFINITIONS ::= BEGIN
-INCLUDE stdio;
-INTERFACE IN {
-	myarg1	int,
-	myarg2	void REFERENCE
-}
-INTERFACE OUT {
-	myret1	int,
-	myret2	"struct mytype"
-}
-INTERFACE STACK {
-	mylocal	int
-}
-ACTION {
-	-- execute "anotherfunc", returning "RET"
-	CALL anotherfunc();
-	COPY RET->errorcode, STACK->mylocal;
-	
-	-- define a callback to an external callback system (ie: libevent)
-	WAIT void (evutil_socket_t fd, short what, void *CBARG) {
-		/* set something on the STACK */
-		STACK->mylocal = what;
-
-		/* execution now resumes */
+	-- define an Event function
+	myfunction DEFINITIONS ::= BEGIN
+	INCLUDE stdio;
+	INTERFACE IN {
+		myarg1	int,
+		myarg2	void REFERENCE
 	}
-	CODE {
-		/* expands to function + callback */
-		printf("this happens first\n");
-
-		/* register an external libevent callback */
-		event_new(event_base, -1, 0, CBFUNC, CBARG);
+	INTERFACE OUT {
+		myret1	int,
+		myret2	"struct mytype"
+	}
+	INTERFACE STACK {
+		mylocal	int
+	}
+	ACTION {
+		-- execute "anotherfunc", returning "RET"
+		CALL anotherfunc();
+		COPY RET->errorcode, STACK->mylocal;
 		
-		/* this function execution stops until CBFUNC() is called */
-		CALLBACK;
-	}
+		-- define a callback to an external callback system (ie: libevent)
+		WAIT void (evutil_socket_t fd, short what, void *CBARG) {
+			/* set something on the STACK */
+			STACK->mylocal = what;
 
-	-- note: event system yields here to other queued events
+			/* execution now resumes */
+		}
+		CODE {
+			/* expands to function + callback */
+			printf("this happens first\n");
 
-	SYNC {
-		/* expands inline, without processing other events */
-		printf("CODE and WAIT have been called back\n");
-	}
+			/* register an external libevent callback */
+			event_new(event_base, -1, 0, CBFUNC, CBARG);
+			
+			/* this function execution stops until CBFUNC() is called */
+			CALLBACK;
+		}
 
-	-- set a retry point, CONTINUE resets to here
-	RETRY {
-		CALL EVENT_FUNCTION();
+		-- note: event system yields here to other queued events
 
-		-- test a return value, retry the loop if it fails
-		TEST (RET->errorcode) {
-			CONTINUE;
+		SYNC {
+			/* expands inline, without processing other events */
+			printf("CODE and WAIT have been called back\n");
+		}
+
+		-- set a retry point, CONTINUE resets to here
+		RETRY {
+			CALL EVENT_FUNCTION();
+
+			-- test a return value, retry the loop if it fails
+			TEST (RET->errorcode) {
+				CONTINUE;
+			}
 		}
 	}
-}
 
-FINISH {
-	-- test and return an error code
-	TEST (RET->errorcode)
-		RETURN RET->errorcode;
-	RETURN TBOX_SUCCESS;
-}
-END
+	FINISH {
+		-- test and return an error code
+		TEST (RET->errorcode)
+			RETURN RET->errorcode;
+		RETURN TBOX_SUCCESS;
+	}
+	END
