@@ -6,7 +6,6 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/socket.h>
-#include <sys/limits.h>
 #include <sys/mount.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -22,6 +21,7 @@
 #include <syslog.h>
 #include <toolbox.h>
 
+#undef CODE
 #include "tbevent.h"
 #undef CODE
 
@@ -80,6 +80,7 @@ typedef struct {
 	struct action_list finish;
 	int lineno;
 } YYSTYPE;
+#define YYSTYPE_IS_DECLARED 1
 
 %}
 
