@@ -1,0 +1,144 @@
+# test.event
+
+function DEFINITIONS ::= BEGIN
+INCLUDE stdio;
+
+INTERFACE IN {
+	testval		int,
+	pointer		void REFERENCE
+}
+
+INTERFACE OUT {
+	xid			int,
+	junk		"struct __sbuf"
+}
+
+ACTION {
+	CODE {
+		log_debug("function(%d, 0x%p)",
+				IN->testval, IN->pointer);
+		OUT->xid = 999;
+		OUT->junk._base = NULL;
+		OUT->junk._size = 333;
+	}
+	-- generate an ERROR
+	CODE {
+		ERRORCODE = TBOX_API_INVALID;
+		return TBOX_API_INVALID;
+	}
+}
+END
+
+anotherfunc DEFINITIONS ::= BEGIN
+INTERFACE OUT {
+	ignore		int,
+	mytest		int
+}
+ACTION {
+	SYNC {
+		OUT->mytest = 111;
+	}
+}
+END
+
+-----------------------------------------------------
+
+test DEFINITIONS ::= BEGIN
+
+--INCLUDE acl, messages, recover, degrade;
+
+PREAMBLE {
+	void set_callback(void *, void *);
+	struct testent { TAILQ_ENTRY(testent) entry; };
+	TAILQ_HEAD(testent_head, testent) entries;
+}
+
+INTERFACE IN {
+	testval		int
+}
+
+INTERFACE OUT {
+	xid			uint32_t
+}
+
+INTERFACE STACK {
+	stuff		int,
+	copied		int
+}
+
+ACTION {
+	CALL function(7, NULL);
+	CODE {
+		STACK->stuff = IN->testval;
+		log_debug("function() returned xid=%d junk=(%p, %d)",
+				RET->xid, RET->junk._base, RET->junk._size);
+	}
+
+	COPY STACK->stuff, STACK->copied;
+
+	RETRY {
+		CODE {
+			log_debug("CODE IN RETRY stuff=%u", STACK->stuff);
+		}
+		SYNC {
+			log_debug("MORE IN RETRY");
+		}
+		TEST (STACK->stuff == 123456) {
+			COPY 1234567, STACK->stuff;
+			CONTINUE;
+		}
+	}
+
+	SYNC {
+		log_debug("SYNC");
+	}
+
+	TEST (1) {
+		CODE {
+			log_debug("CODE IN TEST(1)");
+		}
+	}
+
+	TEST (0) {
+		CODE {
+			log_debug("CODE IN TEST(0)");
+		}
+	}
+
+	WAIT int (int var1, int var2, void *CBARG) {
+		log_debug("WAIT CALLBACK");
+	}
+	CODE {
+		log_debug("CODE FOR WAIT 0x%p", &CBFUNC);
+		set_callback(CBFUNC, CBARG);
+		CALLBACK;
+	}
+
+	CODE {
+		log_debug("THIS SHOULD BE AFTER CALLBACK");
+	}
+
+	CALL anotherfunc();
+	CODE {
+		log_debug("anotherfunc() returned ignore=%d test=%d",
+				RET->ignore, RET->mytest);
+	}
+
+	RETURN TBOX_API_INVALID;
+
+	CODE {
+		log_debug("THIS SHOULD NEVER BE RUN");
+	}
+}
+
+FINISH {
+	CODE {
+		log_debug("CODE FINISH");
+	}
+	RETURN TBOX_SUCCESS;
+	CODE {
+		log_debug("THIS SHOULD NOT BE RUN");
+	}
+}
+
+END
